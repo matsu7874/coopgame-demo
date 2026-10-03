@@ -171,6 +171,11 @@ table.result thead th { color: var(--muted); font-weight: 500; }
 
 .foot { max-width: 1240px; margin: 0 auto; padding: 8px 24px 40px; color: var(--muted); font-size: 13px; }
 
+/* 狭い画面では、配分三角形の文字を viewBox の単位で大きくする */
+@media (max-width: 560px) {
+  .scene[data-scene="triangle"] .stage svg text { font-size: 21px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }

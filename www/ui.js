@@ -22,7 +22,13 @@ function setAttrs(node, attrs) {
   for (const [key, value] of Object.entries(attrs)) {
     if (value == null || value === false) continue;
     if (key.startsWith("on") && typeof value === "function") node.addEventListener(key.slice(2), value);
-    else if (key === "style" && typeof value === "object") Object.assign(node.style, value);
+    else if (key === "style" && typeof value === "object") {
+      // カスタムプロパティ (--key など) は setProperty でしか設定できない。
+      for (const [name, v] of Object.entries(value)) {
+        if (name.startsWith("--")) node.style.setProperty(name, v);
+        else node.style[name] = v;
+      }
+    }
     else node.setAttribute(key, value === true ? "" : value);
   }
 }
