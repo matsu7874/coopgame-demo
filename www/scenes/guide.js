@@ -396,6 +396,7 @@ const STYLE = `
 .gd-code-bar .gd-copy { margin-left: auto; }
 .gd-code pre { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--grid); border-radius: 4px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; max-width: 100%; }
 .gd-code pre.gd-out { color: var(--ink); background: var(--surface); border-style: dashed; }
+.gd-code-source { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
 .gd-out-label { font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
 .gd-code-lead { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
 .gd-map ul { list-style: none; margin: 0; padding-left: 18px; border-left: 1px solid var(--line); }
@@ -408,10 +409,15 @@ const STYLE = `
 `;
 
 // docs/examples.md から scripts/sync_examples.py で作ったサンプルコード (キーは SOLUTIONS と同じ)。
+// source は取得元 (どの版の docs/examples.md か)。
 let examples = {};
+let examplesSource = "";
 const examplesReady = fetch(new URL("../examples.json", import.meta.url))
   .then((response) => (response.ok ? response.json() : {}))
-  .then((data) => { examples = data; })
+  .then((data) => {
+    examples = data.examples ?? {};
+    examplesSource = data.source ?? "";
+  })
   .catch(() => {});
 
 // Python の「# => 出力」と Rust の println! の行末コメントを、コードから外して「出力」の枠に並べる。
@@ -473,6 +479,7 @@ function exampleSection(id) {
     example.lead ? h("p", { class: "gd-code-lead" }, example.lead) : null,
     h("div", { class: "gd-code-bar", role: "group", "aria-label": "言語" }, tabs, copy),
     holder,
+    examplesSource ? h("p", { class: "gd-code-source" }, `出典: ${examplesSource}`) : null,
   );
 }
 

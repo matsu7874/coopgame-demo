@@ -35,6 +35,10 @@ jobs:
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
           cargo test --release
+      - name: Sync example code
+        # 依存している coopgame の版のタグ (v<版>) から docs/examples.md を取得する。
+        # 取得できない (本体が非公開、タグがない) ときは、コミット済みの www/examples.json を使い警告を出す。
+        run: python3 scripts/sync_examples.py --release --allow-missing
       - name: Build WASM
         run: wasm-pack build --release --target web --out-dir www/pkg --no-typescript
       - name: Remove files not needed on the site

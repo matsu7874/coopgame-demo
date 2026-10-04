@@ -40,10 +40,15 @@ coopgame の版を上げるときは `cargo update -p coopgame` (または `Carg
 ## サンプルコードの更新
 
 「どの解を使う?」のカードに出すサンプルコードは、coopgame の `docs/examples.md` (doctest と pytest で確かめている) から作る。
+公開の workflow は、依存している coopgame の版のタグ `v<版>` からこのファイルを取得するので、計算・早見図の印・サンプルコードが同じ版にそろう。
+取得できないとき (本体のリポジトリが非公開、タグがない、その版に `docs/examples.md` がない) は、コミット済みの `www/examples.json` を使い、Actions に警告を出す。
 
 ```bash
-python3 scripts/sync_examples.py <coopgame のリポジトリ>/docs/examples.md   # www/examples.json を書き出す
+python3 scripts/sync_examples.py --release                       # Cargo.lock の版のタグから取得
+python3 scripts/sync_examples.py <coopgame のリポジトリ>/docs/examples.md   # 公開前の版を手元から試す
 ```
+
+取得元はカードのサンプルコードの下に「出典」として表示する。
 
 ## 構成
 
