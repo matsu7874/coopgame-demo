@@ -9,7 +9,9 @@ use coopgame::oracle::bankruptcy::BankruptcyGame;
 use coopgame::oracle::spanning_tree::SpanningTreeGame;
 use coopgame::oracle::voting::WeightedVotingGame;
 use coopgame::oracle::{self, tabulate};
-use coopgame::{Coalition, Domain, ExplicitGame, bankruptcy as rules, nucleolus, plot, properties, values};
+use coopgame::{
+    Coalition, Domain, ExplicitGame, bankruptcy as rules, nucleolus, plot, properties, values,
+};
 use serde_json::{Value, json};
 use wasm_bindgen::prelude::*;
 
@@ -116,7 +118,11 @@ pub fn voting(weights: &[u32], quota: u32) -> Value {
 pub fn spanning_tree(xs: &[f64], ys: &[f64]) -> Value {
     let size = xs.len().min(ys.len());
     let costs: Vec<Vec<f64>> = (0..size)
-        .map(|u| (0..size).map(|v| (xs[u] - xs[v]).hypot(ys[u] - ys[v])).collect())
+        .map(|u| {
+            (0..size)
+                .map(|v| (xs[u] - xs[v]).hypot(ys[u] - ys[v]))
+                .collect()
+        })
         .collect();
     let game = match SpanningTreeGame::new(costs.clone()) {
         Ok(game) => game,
@@ -127,8 +133,10 @@ pub fn spanning_tree(xs: &[f64], ys: &[f64]) -> Value {
         Err(e) => return error(e),
     };
     let standalone: Vec<f64> = costs[0][1..].to_vec();
-    let to_costs = |s: &[f64]| -> Vec<f64> { standalone.iter().zip(s).map(|(c, s)| c - s).collect() };
-    let to_savings = |c: &[f64]| -> Vec<f64> { standalone.iter().zip(c).map(|(a, c)| a - c).collect() };
+    let to_costs =
+        |s: &[f64]| -> Vec<f64> { standalone.iter().zip(s).map(|(c, s)| c - s).collect() };
+    let to_savings =
+        |c: &[f64]| -> Vec<f64> { standalone.iter().zip(c).map(|(a, c)| a - c).collect() };
     let in_core = |c: &[f64]| properties::is_in_core(&savings, &to_savings(c), 1e-6);
 
     let bird = game.bird_rule();
@@ -185,6 +193,14 @@ pub fn airport(costs: &[f64]) -> Value {
     })
 }
 
+/// 依存している coopgame の版 (Cargo.lock から build.rs で埋め込む)。
+pub const COOPGAME_VERSION: &str = env!("COOPGAME_VERSION");
+
+#[wasm_bindgen(js_name = coopgameVersion)]
+pub fn coopgame_version_js() -> String {
+    COOPGAME_VERSION.to_string()
+}
+
 #[wasm_bindgen(js_name = triangle)]
 pub fn triangle_js(values: Vec<f64>) -> String {
     triangle(&values).to_string()
@@ -220,6 +236,15 @@ mod tests {
 
     fn close(a: &[f64], b: &[f64]) -> bool {
         a.len() == b.len() && a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-6)
+    }
+
+    #[test]
+    fn coopgame_version_is_read_from_lock_file() {
+        assert!(
+            COOPGAME_VERSION
+                .split('.')
+                .all(|part| part.parse::<u32>().is_ok())
+        );
     }
 
     #[test]
@@ -261,6 +286,9 @@ mod tests {
     #[test]
     fn airport_shapley_littlechild_owen() {
         let out = airport(&[1.0, 2.0, 4.0]);
-        assert!(close(&vector(&out["shapley"]), &[1.0 / 3.0, 1.0 / 3.0 + 0.5, 1.0 / 3.0 + 0.5 + 2.0]));
+        assert!(close(
+            &vector(&out["shapley"]),
+            &[1.0 / 3.0, 1.0 / 3.0 + 0.5, 1.0 / 3.0 + 0.5 + 2.0]
+        ));
     }
 }

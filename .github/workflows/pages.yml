@@ -1,0 +1,56 @@
+# main への push で WASM をビルドし、www/ を GitHub Pages に公開する。
+# リポジトリの Settings → Pages → Build and deployment の Source を「GitHub Actions」にしておく。
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 公開は 1 つずつ行い、実行中の公開は途中で止めない。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+      - name: Check
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test --release
+      - name: Build WASM
+        run: wasm-pack build --release --target web --out-dir www/pkg --no-typescript
+      - name: Remove files not needed on the site
+        # wasm-pack が作る .gitignore と package.json は配信しない。
+        run: rm -f www/pkg/.gitignore www/pkg/package.json
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: www
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

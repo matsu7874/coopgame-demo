@@ -22,6 +22,21 @@ python3 -m http.server 8000 --directory www
 
 ブラウザで http://localhost:8000/ を開く。
 
+## 公開 (GitHub Pages)
+
+`.github/workflows/pages.yml` が、main への push のたびに Rust のテストと WASM のビルドを行い、`www/` を GitHub Pages に公開する。
+
+最初の 1 回だけ、次の設定が必要。
+
+1. GitHub にこのリポジトリを作り、main を push する。
+2. リポジトリの Settings → Pages → Build and deployment の Source を「GitHub Actions」にする。
+3. Actions タブで「Deploy to GitHub Pages」が成功したら、`https://<ユーザー名>.github.io/<リポジトリ名>/` で開ける。
+
+ページは相対パスだけで読み込むので、リポジトリ名が変わっても (サブパスでも) そのまま動く。
+
+coopgame の版を上げるときは `cargo update -p coopgame` (または `Cargo.toml` の版を変更) して push する。
+早見図の「<版> にはない」の印は、ビルドに使った coopgame の版 (`Cargo.lock` から `build.rs` が読む) で自動的に付け外しされる。
+
 ## サンプルコードの更新
 
 「どの解を使う?」のカードに出すサンプルコードは、coopgame の `docs/examples.md` (doctest と pytest で確かめている) から作る。

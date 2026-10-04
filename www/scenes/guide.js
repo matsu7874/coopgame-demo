@@ -1,11 +1,11 @@
 // 知りたいことから解 (指標) を選ぶ早見図。質問に答えると道筋が伸び、最後に使う解と関数を示す。
 // 「全体図」では木全体を一覧できる。coopgame の docs/choosing.md の早見図に対応する。
-// WASM は使わない (計算をしないシーン)。
+// 計算はしない。WASM からは、デモが使っている coopgame の版だけを読む。
 
 import { h } from "../ui.js";
 
 // ---- 解の説明 ----
-// next: crates.io の 0.1.0 にはなく、次の版で追加される機能。
+// after: その版より後に coopgame に追加された機能。デモが使う coopgame がその版以前なら印を付ける。
 const SOLUTIONS = {
   nucleolus: {
     name: "仁",
@@ -49,7 +49,7 @@ const SOLUTIONS = {
     rust: "values::solidarity",
     cli: "coopgame solidarity v.txt",
     py: "coopgame.solidarity(game)",
-    next: true,
+    after: "0.1.0",
   },
   tau: {
     name: "tau 値",
@@ -57,7 +57,7 @@ const SOLUTIONS = {
     rust: "compromise::tau_value",
     cli: "coopgame tau v.txt",
     py: "coopgame.tau_value(game)",
-    next: true,
+    after: "0.1.0",
   },
   gately: {
     name: "Gately 点",
@@ -65,7 +65,7 @@ const SOLUTIONS = {
     rust: "compromise::gately_point",
     cli: "coopgame gately v.txt",
     py: "coopgame.gately_point(game)",
-    next: true,
+    after: "0.1.0",
   },
   disruption: {
     name: "disruption nucleolus",
@@ -73,7 +73,7 @@ const SOLUTIONS = {
     rust: "variants::disruption_nucleolus",
     cli: "coopgame disruption v.txt",
     py: "coopgame.disruption_nucleolus(game)",
-    next: true,
+    after: "0.1.0",
   },
   perCapita: {
     name: "per capita 仁",
@@ -102,7 +102,7 @@ const SOLUTIONS = {
     rust: "variants::{anti_nucleolus, anti_prenucleolus}",
     cli: "coopgame anti-nucleolus v.txt",
     py: "coopgame.anti_nucleolus(game)",
-    next: true,
+    after: "0.1.0",
   },
   kernel: {
     name: "カーネル",
@@ -160,7 +160,7 @@ const SOLUTIONS = {
     rust: "communication::myerson",
     cli: "coopgame myerson v.txt --edges 1-2,2-3",
     py: "coopgame.myerson(game, edges)",
-    next: true,
+    after: "0.1.0",
   },
   structure: {
     name: "Aumann–Drèze 値・Owen 値・提携構造つきの仁",
@@ -191,7 +191,7 @@ const SOLUTIONS = {
     rust: "power::SimpleGame::johnston",
     cli: "coopgame power v.txt",
     py: "coopgame.power_indices(game)",
-    next: true,
+    after: "0.1.0",
   },
   deeganPackel: {
     name: "Deegan–Packel 指数",
@@ -199,7 +199,7 @@ const SOLUTIONS = {
     rust: "power::SimpleGame::deegan_packel",
     cli: "coopgame power v.txt",
     py: "coopgame.power_indices(game)",
-    next: true,
+    after: "0.1.0",
   },
   publicGood: {
     name: "Public Good 指数 (Holler 指数)",
@@ -207,7 +207,7 @@ const SOLUTIONS = {
     rust: "power::SimpleGame::public_good",
     cli: "coopgame power v.txt",
     py: "coopgame.power_indices(game)",
-    next: true,
+    after: "0.1.0",
   },
   coleman: {
     name: "Coleman の阻止力・発議力",
@@ -215,7 +215,7 @@ const SOLUTIONS = {
     rust: "power::SimpleGame::{coleman_prevent, coleman_initiative}",
     cli: "coopgame power v.txt",
     py: "coopgame.power_indices(game)",
-    next: true,
+    after: "0.1.0",
   },
   collectivity: {
     name: "Coleman の集団の行動力",
@@ -223,7 +223,7 @@ const SOLUTIONS = {
     rust: "power::SimpleGame::coleman_collectivity",
     cli: "coopgame power v.txt",
     py: "coopgame.power_indices(game)",
-    next: true,
+    after: "0.1.0",
   },
   inCore: {
     name: "コアに入るか・不満の大きい提携",
@@ -435,6 +435,17 @@ function codeBlock(code, lang) {
   );
 }
 
+// "0.1.0" 形式の版を比べる (a < b なら負)。
+function compareVersions(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
 function exampleSection(id) {
   const example = examples[id];
   if (!example) return null;
@@ -465,12 +476,19 @@ function exampleSection(id) {
   );
 }
 
-export function mount(root) {
+export function mount(root, wasm) {
+  const version = wasm?.coopgameVersion?.() ?? "0.0.0";
+  const missing = (s) => s.after && compareVersions(version, s.after) <= 0;
+  const anyMissing = Object.values(SOLUTIONS).some(missing);
   root.append(h("style", {}, STYLE));
   root.append(
     h("div", { class: "scene-head" },
       h("h2", {}, "どの解を使う?"),
-      h("p", {}, "知りたいことに答えていくと、使う解 (指標) と、coopgame の関数・CLI・Python の呼び方を示す。「全体図」では選択肢を一覧できる。「次の版で追加」の印は、crates.io の 0.1.0 にはまだない機能である。"),
+      h("p", {},
+        "知りたいことに答えていくと、使う解 (指標) と、coopgame の関数・CLI・Python の呼び方を示す。「全体図」では選択肢を一覧できる。",
+        `このデモは coopgame ${version} で動いている。`,
+        anyMissing ? `「${version} にはない」の印は、次の版で追加される機能である。` : null,
+      ),
     ),
   );
 
@@ -576,7 +594,7 @@ export function mount(root) {
       ["Python", s.py],
     ].filter(([, v]) => v);
     return h("article", { class: "gd-card" },
-      h("h4", {}, s.name, s.next ? h("span", { class: "gd-next" }, "次の版で追加") : null),
+      h("h4", {}, s.name, missing(s) ? h("span", { class: "gd-next" }, `${version} にはない`) : null),
       h("p", {}, s.what),
       h("dl", {}, rows.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, h("code", {}, v))])),
       s.demo ? h("a", { class: "gd-demo", href: `#${s.demo}` }, `「${DEMO_LABELS[s.demo]}」で動かす`) : null,
