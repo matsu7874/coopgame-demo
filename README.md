@@ -22,6 +22,14 @@ python3 -m http.server 8000 --directory www
 
 ブラウザで http://localhost:8000/ を開く。
 
+## サンプルコードの更新
+
+「どの解を使う?」のカードに出すサンプルコードは、coopgame の `docs/examples.md` (doctest と pytest で確かめている) から作る。
+
+```bash
+python3 scripts/sync_examples.py <coopgame のリポジトリ>/docs/examples.md   # www/examples.json を書き出す
+```
+
 ## 構成
 
 - `src/lib.rs`: coopgame を呼び、結果を JSON の文字列で返す WASM の入口 (`cargo test` で確かめられる)
@@ -29,3 +37,4 @@ python3 -m http.server 8000 --directory www
   - `app.js`: WASM の読み込みとシーンの切り替え (URL の `#triangle` など)
   - `ui.js`: シーン共通の部品
   - `scenes/*.js`: シーンごとの描画と操作
+  - `examples.json`: 早見図のサンプルコード (`scripts/sync_examples.py` で生成)

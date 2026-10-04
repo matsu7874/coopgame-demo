@@ -389,6 +389,15 @@ const STYLE = `
 .gd-card code { font-size: 12.5px; }
 .gd-next { font-size: 11px; font-weight: 500; color: var(--alt1); border: 1px solid currentColor; border-radius: 999px; padding: 0 8px; }
 .gd-card a.gd-demo { font-size: 13px; display: inline-block; margin-top: 8px; }
+.gd-code { margin-top: 10px; border-top: 1px solid var(--grid); padding-top: 8px; }
+.gd-code summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.gd-code summary:hover { color: var(--ink); }
+.gd-code-bar { display: flex; gap: 4px; align-items: center; margin: 8px 0 6px; }
+.gd-code-bar .gd-copy { margin-left: auto; }
+.gd-code pre { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--grid); border-radius: 4px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; max-width: 100%; }
+.gd-code pre.gd-out { color: var(--ink); background: var(--surface); border-style: dashed; }
+.gd-out-label { font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+.gd-code-lead { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
 .gd-map ul { list-style: none; margin: 0; padding-left: 18px; border-left: 1px solid var(--line); }
 .gd-map > ul { border-left: 0; padding-left: 0; }
 .gd-map li { margin: 4px 0; }
@@ -397,6 +406,64 @@ const STYLE = `
 .gd-map .gd-leaf { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; }
 .gd-map .gd-leaf button { font-size: 12.5px; padding: 1px 8px; border-color: var(--nuc); color: var(--nuc); }
 `;
+
+// docs/examples.md から scripts/sync_examples.py で作ったサンプルコード (キーは SOLUTIONS と同じ)。
+let examples = {};
+const examplesReady = fetch(new URL("../examples.json", import.meta.url))
+  .then((response) => (response.ok ? response.json() : {}))
+  .then((data) => { examples = data; })
+  .catch(() => {});
+
+// Python の「# => 出力」と Rust の println! の行末コメントを、コードから外して「出力」の枠に並べる。
+function codeBlock(code, lang) {
+  const pattern = lang === "python" ? /^(.*?print\(.*?)\s+# => (.*)$/ : /^(\s*println!.*?;)\s+\/\/ (.*)$/;
+  const lines = [];
+  const outputs = [];
+  for (const line of code.split("\n")) {
+    const match = line.match(pattern);
+    if (match) {
+      lines.push(match[1]);
+      outputs.push(match[2]);
+    } else {
+      lines.push(line);
+    }
+  }
+  return h("div", {},
+    h("pre", {}, h("code", {}, lines.join("\n"))),
+    outputs.length ? h("div", { class: "gd-out-label" }, "出力") : null,
+    outputs.length ? h("pre", { class: "gd-out" }, outputs.join("\n")) : null,
+  );
+}
+
+function exampleSection(id) {
+  const example = examples[id];
+  if (!example) return null;
+  let lang = "python";
+  const holder = h("div", {});
+  const tabs = ["python", "rust"].map((name) =>
+    h("button", { type: "button", "aria-pressed": String(name === lang), onclick: () => { lang = name; show(); } }, name === "python" ? "Python" : "Rust"),
+  );
+  const copy = h("button", { type: "button", class: "gd-copy", onclick: async () => {
+    try {
+      await navigator.clipboard.writeText(example[lang]);
+      copy.textContent = "コピーした";
+    } catch {
+      copy.textContent = "コピーできない";
+    }
+    setTimeout(() => { copy.textContent = "コピー"; }, 1500);
+  } }, "コピー");
+  function show() {
+    tabs.forEach((tab, i) => tab.setAttribute("aria-pressed", String(["python", "rust"][i] === lang)));
+    holder.replaceChildren(codeBlock(example[lang], lang));
+  }
+  show();
+  return h("details", { class: "gd-code" },
+    h("summary", {}, "サンプルコード (入力から出力まで)"),
+    example.lead ? h("p", { class: "gd-code-lead" }, example.lead) : null,
+    h("div", { class: "gd-code-bar", role: "group", "aria-label": "言語" }, tabs, copy),
+    holder,
+  );
+}
 
 export function mount(root) {
   root.append(h("style", {}, STYLE));
@@ -513,8 +580,11 @@ export function mount(root) {
       h("p", {}, s.what),
       h("dl", {}, rows.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, h("code", {}, v))])),
       s.demo ? h("a", { class: "gd-demo", href: `#${s.demo}` }, `「${DEMO_LABELS[s.demo]}」で動かす`) : null,
+      exampleSection(id),
     );
   }
 
   render();
+  // サンプルコードが届いたら、表示中のカードに足す。
+  examplesReady.then(render);
 }
