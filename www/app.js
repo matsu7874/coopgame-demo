@@ -6,6 +6,7 @@ const SCENES = {
   talmud: () => import("./scenes/talmud.js"),
   voting: () => import("./scenes/voting.js"),
   water: () => import("./scenes/water.js"),
+  guide: () => import("./scenes/guide.js"),
 };
 const DEFAULT = "triangle";
 

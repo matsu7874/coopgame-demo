@@ -165,6 +165,8 @@ table.result thead th { color: var(--muted); font-weight: 500; }
 .key::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--key, var(--ink)); }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
 
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
 .badge { display: inline-block; font-size: 12px; padding: 0 8px; border-radius: 999px; border: 1px solid currentColor; }
 .badge.ok { color: var(--good); }
 .badge.ng { color: var(--bad); }
