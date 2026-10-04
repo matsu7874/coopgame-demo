@@ -73,6 +73,7 @@ export function mount(root, wasm) {
       h("span", { class: "key", style: `--key: ${r.color}` }, r.label),
     ),
   );
+  const ruleExplain = h("div", { class: "note", style: { marginTop: "8px" }, "aria-live": "polite" });
   const tableBody = h("tbody");
   const tableFoot = h("tfoot");
   const table = h(
@@ -99,7 +100,7 @@ export function mount(root, wasm) {
   const status = h("p", { class: "note", "aria-live": "polite" });
 
   panel.append(
-    h("div", {}, h("h3", {}, "表示する分け方"), h("div", { class: "buttons", role: "group", "aria-label": "表示する分け方" }, ruleButtons)),
+    h("div", {}, h("h3", {}, "表示する分け方"), h("div", { class: "buttons", role: "group", "aria-label": "表示する分け方" }, ruleButtons), ruleExplain),
     h("div", {}, h("h3", {}, "各家の負担 (万円)"), h("div", { style: { overflowX: "auto" } }, table)),
     h("div", {}, h("h3", {}, "コア (英: core) に入るか"), badges, h("p", { class: "note", style: { marginTop: "6px" } },
       "コアに入る分け方では、どの家の組も「自分たちだけで水源まで管を引いた方が安い」とはならない。コアから外れると、その組は全体の計画から抜ける理由を持つ。"), coreNote),
@@ -111,7 +112,7 @@ export function mount(root, wasm) {
       h("div", { class: "buttons", style: { marginTop: "6px" } },
         PRESETS.map((p) => h("button", { type: "button", onclick: () => setPoints(p.points) }, p.label))),
       h("p", { class: "note", style: { marginTop: "6px" } },
-        "家と水源はドラッグで動かせる。Tab で選んで矢印キーでも動く (Shift で大きく動く)。Bird 規則は、水源から木をたどった時に各家が自分の手前の管 1 本を払う規則で、この分け方は配置によらずコアに入る (Bird 1976)。"),
+        "家と水源はドラッグで動かせる。Tab で選んで矢印キーでも動く (Shift で大きく動く)。"),
       status,
     ),
   );
@@ -178,7 +179,9 @@ export function mount(root, wasm) {
       let nx = -(y2 - y1) / len;
       let ny = (x2 - x1) / len;
       if (ny > 0) [nx, ny] = [-nx, -ny];
-      const label = fmt(dist(u, v), 1);
+      // Bird 規則では、管の家側の端の家がその管を払う。狭い画面 (k が大きい) では重なるので費用だけ書き、
+      // 誰が払うかはパネルの一覧で示す。
+      const label = rule === "bird" && k <= 1.3 ? `${NAMES[v - 1]} が払う ${fmt(dist(u, v), 1)}` : fmt(dist(u, v), 1);
       const tx = mx + nx * 22 * k;
       const ty = my + ny * 22 * k + 6 * k;
       pipeLabelLayer.append(
@@ -372,7 +375,28 @@ export function mount(root, wasm) {
     return worst;
   }
 
+  // 選んだ分け方の定義。Bird 規則は、各家がどの管を払うかを今の配置で列挙する。
+  function explainRule() {
+    const place = (i) => (i === 0 ? "水源" : `家 ${NAMES[i - 1]}`);
+    if (rule === "bird") {
+      const items = (result?.edges ?? []).map(([u, v]) =>
+        h("li", {}, `家 ${NAMES[v - 1]}: ${place(u)} から引く管 (${fmt(dist(u, v), 1)} 万円)`));
+      ruleExplain.replaceChildren(
+        h("p", { style: { margin: "0 0 4px" } },
+          "Bird 規則 (Bird 1976): 全員をつなぐ最小全域木を水源から 1 本ずつ伸ばしていき、各家は自分を木につないだ管 1 本 (水源側から自分の家に来る管) の費用を払う。図の管 (幅の広い画面) にも払う家を書いている。この分け方は、どの配置でもコアに入る。"),
+        h("ul", { style: { margin: 0, paddingLeft: "1.2em" } }, items),
+      );
+    } else if (rule === "shapley") {
+      ruleExplain.textContent =
+        "Shapley 値: 家が 1 軒ずつ加わる順番を全て同じ確率で考え、その家が加わった時に増える管の費用 (最小全域木の長さの増分) を平均した額を払う。配置によってはコアから外れる。";
+    } else {
+      ruleExplain.textContent =
+        "仁: どの家の組についても「その組だけで水源まで引いた場合の費用 − その組の負担の合計」(組にとっての得) を考え、最も得の小さい組の得をできるだけ大きくし、同点なら次に得の小さい組の得を大きくする分け方。コアが空でなければコアに入る。";
+    }
+  }
+
   function drawPanel() {
+    explainRule();
     addButton.disabled = points.length - 1 >= MAX_HOUSES;
     removeButton.disabled = points.length - 1 <= MIN_HOUSES;
     status.textContent = `家 ${points.length - 1} 軒`;

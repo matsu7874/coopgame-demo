@@ -16,6 +16,12 @@ const PRESETS = [
   { label: "コアが空", values: [0, 0, 80, 0, 80, 80, 90], note: "どの 2 人も 80 を得られるが、3 人では 90 しかない。どう分けても誰かが抜けたくなる。" },
   { label: "手袋の市場", values: [0, 0, 100, 0, 100, 0, 100], note: "A は左手袋、B と C は右手袋を 1 つずつ持つ。左右そろうと 100。コアは A が全部取る 1 点になる。" },
   { label: "非対称", values: [10, 0, 50, 0, 40, 30, 100], note: "コアが多角形になる例。仁はコアの「中心」に、Shapley 値は外れた所に来ることもある。" },
+  {
+    label: "破産問題",
+    // 遺産 200、請求 100・200・300。v(S) = max(0, 200 - (S の外の人の請求の和))。
+    values: [0, 0, 0, 0, 0, 100, 200],
+    note: "遺産 200 を請求 100・200・300 の 3 人で分ける (「タルムードの遺産」と同じ問題)。v(S) は、S の外の人の請求を全額払った残り。仁 (50, 75, 75) はタルムード則と一致する。破産ゲームは凸なので、Shapley 値もコアに入る。",
+  },
 ];
 
 // 三角形の頂点 (viewBox 座標)。A が上、B が左下、C が右下。
@@ -115,6 +121,7 @@ export function mount(root, wasm) {
   };
 
   const proposalTable = h("tbody");
+  const comparison = h("p", { class: "note", "aria-live": "polite" });
   const complaintChart = s("svg", { viewBox: "0 0 320 150", role: "img", "aria-label": "提携ごとの不満" });
   const verdict = h("p", { class: "note" });
   const solutionTable = h("tbody");
@@ -124,7 +131,7 @@ export function mount(root, wasm) {
     h("div", {}, h("h3", {}, "例"), h("div", { class: "buttons" }, presetButtons), presetNote),
     h("div", {}, h("h3", {}, "組むと得られる額 v(S)"),
       ...PAIRS.map((m) => addSlider(m, 120)),
-      addSlider(7, 160),
+      addSlider(7, 240),
       h("details", {}, h("summary", { class: "note" }, "1 人で得られる額"), ...[1, 2, 4].map((m) => addSlider(m, 60))),
     ),
     h("div", {},
@@ -134,6 +141,7 @@ export function mount(root, wasm) {
         h("button", { type: "button", onclick: () => moveTo(result?.nucleolus) }, "仁に動かす"),
         h("button", { type: "button", onclick: () => moveTo(result?.shapley) }, "Shapley 値に動かす"),
       ),
+      comparison,
     ),
     h("div", {}, h("h3", {}, "提携ごとの不満 v(S) − x(S)"), complaintChart, verdict),
     h("div", {}, h("h3", {}, "解"),
@@ -322,9 +330,27 @@ export function mount(root, wasm) {
       if (node.tagName === "line") node.setAttribute("stroke-width", bad ? 3 : 1.5);
     }
 
-    proposalTable.replaceChildren(
-      h("tr", {}, h("td", {}, "取り分"), proposal.map((xi) => h("td", {}, fmt(xi, 1)))),
-    );
+    const rows = [h("tr", {}, h("td", {}, "取り分"), proposal.map((xi) => h("td", {}, fmt(xi, 1))))];
+    const inCore = PROPER.every((mask) => sumOver(mask, proposal) >= v(mask) - 1e-6);
+    const nucleolus = Array.isArray(result.nucleolus) ? result.nucleolus : null;
+    if (inCore && nucleolus) {
+      // コアに入る提案を、仁と比べて誰に有利 (+) か不利 (−) かで示す。
+      const diff = proposal.map((xi, i) => xi - nucleolus[i]);
+      const signed = (d) => (Math.abs(d) < 0.05 ? "±0" : `${d > 0 ? "+" : "−"}${fmt(Math.abs(d), 1)}`);
+      const tone = (d) => (Math.abs(d) < 0.05 ? {} : { color: d > 0 ? "var(--good)" : "var(--bad)", fontWeight: 700 });
+      rows.push(h("tr", {}, h("td", {}, "仁との差"), diff.map((d) => h("td", { style: tone(d) }, signed(d)))));
+      const gain = NAMES.filter((_, i) => diff[i] >= 0.05);
+      const loss = NAMES.filter((_, i) => diff[i] <= -0.05);
+      comparison.textContent = gain.length === 0 && loss.length === 0
+        ? "この提案はコアに入り、仁とほぼ同じ分け方である。"
+        : `この提案はコアに入る。仁と比べると、${gain.join("・")} に有利で、${loss.join("・")} に不利な分け方である (差の合計は 0)。`;
+    } else {
+      const coreEmpty = (result.core_vertices ?? []).length === 0;
+      comparison.textContent = !nucleolus || coreEmpty
+        ? ""
+        : "提案をコア (緑の部分) に動かすと、仁と比べて誰に有利か不利かを表示する。";
+    }
+    proposalTable.replaceChildren(...rows);
     drawComplaints(excess);
   }
 
