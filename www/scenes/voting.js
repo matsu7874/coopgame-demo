@@ -572,7 +572,7 @@ export function mount(root, wasm) {
   // ---- 表と最小勝利提携 ----
   function vetoPlayers() {
     if (result.error || result.minimal_winning.length === 0) return [];
-    return state.seats.map((_, i) => i).filter((i) => result.minimal_winning.every((m) => (m >> i) & 1));
+    return state.seats.map((_, i) => i).filter((i) => result.minimal_winning.every((m) => m.includes(i)));
   }
 
   function drawTable() {
@@ -620,7 +620,8 @@ export function mount(root, wasm) {
     const LIMIT = 12;
     mwcHead.textContent = `最小勝利提携 (${list.length} 個)`;
     mwcNote.textContent = "可決できて、どの党が抜けても否決になる党の組。";
-    const names = (mask) => state.names.filter((_, i) => (mask >> i) & 1).join("・");
+    // 最小勝利提携は党の番号 (0 始まり) の配列で届く。名前との対応はここで持つ。
+    const names = (members) => members.map((i) => state.names[i]).join("・");
     mwcList.replaceChildren(
       ...list.slice(0, LIMIT).map((m) => h("li", {}, names(m))),
       ...(list.length > LIMIT ? [h("li", { style: { listStyle: "none", color: "var(--muted)" } }, `ほか ${list.length - LIMIT} 個`)] : []),

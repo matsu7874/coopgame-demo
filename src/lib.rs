@@ -3,15 +3,14 @@
 //! 各関数はデモの 1 画面に対応し、計算結果を JSON の文字列で返す。
 //! 計算に失敗した項目は `{"error": "..."}` にして返し、画面の側で表示する。
 
-use coopgame::kernel_set::{SetOptions, kernel_set};
-use coopgame::oracle::airport::AirportGame;
-use coopgame::oracle::bankruptcy::BankruptcyGame;
-use coopgame::oracle::spanning_tree::SpanningTreeGame;
-use coopgame::oracle::voting::WeightedVotingGame;
-use coopgame::oracle::{self, tabulate};
-use coopgame::{
-    Coalition, Domain, ExplicitGame, bankruptcy as rules, nucleolus, plot, properties, values,
-};
+use coopgame::analysis::plot;
+use coopgame::games::airport::AirportGame;
+use coopgame::games::bankruptcy::{self as rules, BankruptcyGame};
+use coopgame::games::spanning_tree::SpanningTreeGame;
+use coopgame::games::voting::WeightedVotingGame;
+use coopgame::kernel::{SetOptions, kernel_set};
+use coopgame::power::SimpleGame;
+use coopgame::{Domain, ExplicitGame, PlayerSet, nucleolus, properties, values};
 use serde_json::{Value, json};
 use wasm_bindgen::prelude::*;
 
@@ -43,10 +42,10 @@ pub fn triangle(values: &[f64]) -> Value {
                 .collect::<Vec<_>>()
         });
     json!({
-        "nucleolus": result_or_error(nucleolus::nucleolus(&game).map(|r| json!(r.allocation))),
-        "prenucleolus": result_or_error(nucleolus::prenucleolus(&game).map(|r| json!(r.allocation))),
+        "nucleolus": result_or_error(nucleolus::nucleolus(&game).map(|r| json!(r.allocation()))),
+        "prenucleolus": result_or_error(nucleolus::prenucleolus(&game).map(|r| json!(r.allocation()))),
         "shapley": values::shapley(&game),
-        "least_core": result_or_error(least_core.map(|l| json!({ "epsilon": l.epsilon, "allocation": l.allocation }))),
+        "least_core": result_or_error(least_core.map(|l| json!({ "epsilon": l.epsilon(), "allocation": l.allocation() }))),
         "core_vertices": plot::core_vertices(&game),
         "kernel": result_or_error(kernel.map(|k| json!(k))),
         "convex": properties::is_convex(&game),
@@ -60,7 +59,7 @@ pub fn bankruptcy(estate: f64, claims: &[f64]) -> Value {
         Ok(game) => game,
         Err(e) => return error(e),
     };
-    let explicit = match tabulate(&game) {
+    let explicit = match ExplicitGame::tabulate(&game) {
         Ok(explicit) => explicit,
         Err(e) => return error(e),
     };
@@ -71,7 +70,7 @@ pub fn bankruptcy(estate: f64, claims: &[f64]) -> Value {
         .collect();
     json!({
         "talmud": result_or_error(rules::talmud_rule(estate, claims).map(|x| json!(x))),
-        "lp_nucleolus": result_or_error(nucleolus::nucleolus(&explicit).map(|r| json!(r.allocation))),
+        "lp_nucleolus": result_or_error(nucleolus::nucleolus(&explicit).map(|r| json!(r.allocation()))),
         "cea": result_or_error(rules::constrained_equal_awards(estate, claims).map(|x| json!(x))),
         "cel": result_or_error(rules::constrained_equal_losses(estate, claims).map(|x| json!(x))),
         "proportional": proportional,
@@ -80,37 +79,33 @@ pub fn bankruptcy(estate: f64, claims: &[f64]) -> Value {
 }
 
 /// 重み付き投票ゲーム (重み `weights`、可決に必要な重み `quota`) の投票力。
+/// 最小勝利提携は、メンバーの党の番号 (0 始まり) の配列で返す。
 pub fn voting(weights: &[u32], quota: u32) -> Value {
     let weights: Vec<u64> = weights.iter().map(|&w| u64::from(w)).collect();
-    let game = match WeightedVotingGame::new(weights.clone(), u64::from(quota)) {
+    let game = match WeightedVotingGame::new(weights, u64::from(quota)) {
         Ok(game) => game,
         Err(e) => return error(e),
     };
-    let explicit = match tabulate(&game) {
+    let explicit = match ExplicitGame::tabulate(&game) {
         Ok(explicit) => explicit,
         Err(e) => return error(e),
     };
-    let n = weights.len();
-    let wins = |mask: u64| explicit.value(Coalition(mask)) > 0.5;
-    // 最小勝利提携: 勝つが、誰が抜けても負ける提携。
-    let minimal_winning: Vec<u64> = (1..1u64 << n)
-        .filter(|&s| wins(s) && (0..n).all(|i| s >> i & 1 == 0 || !wins(s & !(1 << i))))
-        .collect();
-    // 決定票を持つ回数: 勝利提携から i が抜けると負ける提携の数。
-    let swings: Vec<u64> = (0..n)
-        .map(|i| {
-            (1..1u64 << n)
-                .filter(|&s| s >> i & 1 == 1 && wins(s) && !wins(s & !(1 << i)))
-                .count() as u64
-        })
+    let simple = match SimpleGame::new(&explicit) {
+        Ok(simple) => simple,
+        Err(e) => return error(e),
+    };
+    let minimal_winning: Vec<Vec<usize>> = simple
+        .minimal_winning
+        .iter()
+        .map(|c| c.members().collect())
         .collect();
     json!({
         "shapley_shubik": values::shapley(&explicit),
         "banzhaf": values::normalize(&values::banzhaf(&explicit)),
-        "nucleolus": result_or_error(oracle::nucleolus::nucleolus(&game).map(|r| json!(r.allocation))),
-        "swings": swings,
+        "nucleolus": result_or_error(nucleolus::oracle::nucleolus(&game).map(|r| json!(r.allocation()))),
+        "swings": simple.swings,
         "minimal_winning": minimal_winning,
-        "grand_wins": wins((1u64 << n) - 1),
+        "grand_wins": explicit.value(explicit.grand()) > 0.5,
     })
 }
 
@@ -128,7 +123,7 @@ pub fn spanning_tree(xs: &[f64], ys: &[f64]) -> Value {
         Ok(game) => game,
         Err(e) => return error(e),
     };
-    let savings = match tabulate(&game) {
+    let savings = match ExplicitGame::tabulate(&game) {
         Ok(savings) => savings,
         Err(e) => return error(e),
     };
@@ -142,7 +137,7 @@ pub fn spanning_tree(xs: &[f64], ys: &[f64]) -> Value {
     let bird = game.bird_rule();
     let shapley = to_costs(&values::shapley(&savings));
     let nucleolus = game.nucleolus_costs();
-    let total = coopgame::oracle::PlayerSet::full(size - 1);
+    let total = PlayerSet::grand(size - 1);
     json!({
         "edges": mst_edges(&costs),
         "total": game.cost(&total),
@@ -271,6 +266,11 @@ mod tests {
         assert!(ss[5].abs() < 1e-12);
         assert!(close(&ss[..3], &[7.0 / 30.0; 3]));
         assert_eq!(out["swings"][5], json!(0));
+        // 最小勝利提携は党の番号の配列。大国 3 か国の組はその 1 つで、ルクセンブルクはどの組にも入らない。
+        let minimal: Vec<Vec<usize>> =
+            serde_json::from_value(out["minimal_winning"].clone()).unwrap();
+        assert!(minimal.contains(&vec![0, 1, 2]));
+        assert!(minimal.iter().all(|m| !m.contains(&5)));
     }
 
     #[test]
