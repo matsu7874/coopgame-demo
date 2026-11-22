@@ -34,7 +34,7 @@ pub fn triangle(values: &[f64]) -> Value {
     let least_core = nucleolus::least_core(&game, Domain::Preimputation);
     // カーネルは多面体の和集合。3 人では点か線分なので、頂点の列で返す。
     let kernel = kernel_set(&game, Domain::Imputation, SetOptions::for_game(&game))
-        .map(|set| set.merge_collinear_segments(1e-9))
+        .and_then(|set| set.merge_collinear_segments(1e-9))
         .map(|set| {
             set.pieces
                 .into_iter()
@@ -132,7 +132,9 @@ pub fn spanning_tree(xs: &[f64], ys: &[f64]) -> Value {
         |s: &[f64]| -> Vec<f64> { standalone.iter().zip(s).map(|(c, s)| c - s).collect() };
     let to_savings =
         |c: &[f64]| -> Vec<f64> { standalone.iter().zip(c).map(|(a, c)| a - c).collect() };
-    let in_core = |c: &[f64]| properties::is_in_core(&savings, &to_savings(c), 1e-6);
+    // 許容誤差は定数で、配分はライブラリが返した有限の値なので、判定がエラーになることはない。
+    let in_core =
+        |c: &[f64]| properties::is_in_core(&savings, &to_savings(c), 1e-6).unwrap_or(false);
 
     let bird = game.bird_rule();
     let shapley = to_costs(&values::shapley(&savings));
