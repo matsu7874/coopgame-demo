@@ -147,7 +147,10 @@ pub fn spanning_tree(xs: &[f64], ys: &[f64]) -> Value {
         "bird": { "costs": bird, "in_core": in_core(&bird) },
         "shapley": { "costs": shapley, "in_core": in_core(&shapley) },
         "nucleolus": match nucleolus {
-            Ok(c) => json!({ "costs": c, "in_core": in_core(&c) }),
+            Ok(result) => {
+                let c = result.allocation();
+                json!({ "costs": c, "in_core": in_core(c) })
+            }
             Err(e) => error(e),
         },
     })
@@ -186,7 +189,7 @@ pub fn airport(costs: &[f64]) -> Value {
     };
     json!({
         "shapley": game.shapley_costs(),
-        "nucleolus": result_or_error(game.nucleolus_costs().map(|x| json!(x))),
+        "nucleolus": result_or_error(game.nucleolus_costs().map(|x| json!(x.allocation()))),
     })
 }
 
